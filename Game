@@ -1,0 +1,252 @@
+#include <bits/stdc++.h>
+#include <windows.h>
+#include <conio.h>
+using namespace std;
+
+const int Board_Width = 20;
+const int Board_Height = 20;
+const int Tetris_Size = 4;
+
+const int Tetrimino_Shape[7][Tetris_Size][Tetris_Size] = {
+    {{0, 0, 0, 0}, {1, 1, 1, 1}, {0, 0, 0, 0}, {0, 0, 0, 0}}, // I
+    {{0, 0, 0, 0}, {0, 1, 1, 0}, {0, 1, 1, 0}, {0, 0, 0, 0}}, // O
+    {{0, 0, 0, 0}, {0, 1, 0, 0}, {1, 1, 1, 0}, {0, 0, 0, 0}}, // T
+    {{0, 0, 0, 0}, {0, 1, 1, 0}, {1, 1, 0, 0}, {0, 0, 0, 0}}, // S
+    {{0, 0, 0, 0}, {1, 1, 0, 0}, {0, 1, 1, 0}, {0, 0, 0, 0}}, // Z
+    {{0, 0, 0, 0}, {1, 0, 0, 0}, {1, 1, 1, 0}, {0, 0, 0, 0}}, // J
+    {{0, 0, 0, 0}, {0, 0, 1, 0}, {1, 1, 1, 0}, {0, 0, 0, 0}}  // L
+};
+
+void gotoxy(int x, int y) {
+    COORD coord = {static_cast<SHORT>(x), static_cast<SHORT>(y)};
+    SetConsoleCursorPosition(GetStdHandle(STD_OUTPUT_HANDLE), coord);
+}
+
+class Tetromino {
+public:
+    int shape[Tetris_Size][Tetris_Size];
+    int PieceX, PieceY;
+    int shapeIndex;
+
+    Tetromino() {
+        shapeIndex = rand() % 7;
+        for (int i = 0; i < Tetris_Size; i++)
+            for (int j = 0; j < Tetris_Size; j++)
+                shape[i][j] = Tetrimino_Shape[shapeIndex][i][j];
+        PieceX = Board_Width / 2 - Tetris_Size / 2;
+        PieceY = 0;
+    }
+
+    void rotate() {
+        int temp[Tetris_Size][Tetris_Size];
+        for (int i = 0; i < Tetris_Size; i++)
+            for (int j = 0; j < Tetris_Size; j++)
+                temp[j][Tetris_Size - 1 - i] = shape[i][j];
+        for (int i = 0; i < Tetris_Size; i++)
+            for (int j = 0; j < Tetris_Size; j++)
+                shape[i][j] = temp[i][j];
+    }
+};
+
+class Tetris {
+private:
+    vector<vector<int>> Board;
+    Tetromino currentPiece;
+    vector<Tetromino> upcomingPieces;
+    int score;
+    bool firstDraw = true;
+    bool paused = false;
+    string playerName;
+
+    bool isMoveValid(int newX, int newY) {
+        for (int i = 0; i < Tetris_Size; i++) {
+            for (int j = 0; j < Tetris_Size; j++) {
+                if (currentPiece.shape[i][j]) {
+                    int PieceX = newX + j;
+                    int PieceY = newY + i;
+                    if (PieceX < 0 || PieceX >= Board_Width || PieceY >= Board_Height || (PieceY >= 0 && Board[PieceY][PieceX]))
+                        return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    void mergePiece() {
+        for (int i = 0; i < Tetris_Size; i++)
+            for (int j = 0; j < Tetris_Size; j++)
+                if (currentPiece.shape[i][j]) {
+                    Board[currentPiece.PieceY + i][currentPiece.PieceX + j] = 1;
+                }
+    }
+
+    void clearLines() {
+        for (int i = Board_Height - 1; i >= 0; i--) {
+            bool full = true;
+            for (int j = 0; j < Board_Width; j++) {
+                if (!Board[i][j]) {
+                    full = false;
+                    break;
+                }
+            }
+            if (full) {
+                Board.erase(Board.begin() + i);
+                Board.insert(Board.begin(), vector<int>(Board_Width, 0));
+                score += 100;
+            }
+        }
+    }
+
+    void generateUpcomingPieces() {
+        while (upcomingPieces.size() < 3) {
+            upcomingPieces.push_back(Tetromino());
+        }
+    }
+
+public:
+    Tetris() : Board(Board_Height, vector<int>(Board_Width, 0)), score(0) {
+        srand(time(0));
+        system("cls");
+        cout << "Enter your name: ";
+        getline(cin, playerName);
+        cout << "\nControls:\n";
+        cout << "  a - Move Left\n";
+        cout << "  d - Move Right\n";
+        cout << "  x - Soft Drop (faster down)\n";
+        cout << "  w - Rotate Clockwise\n";
+        cout << "  s - Rotate Counterclockwise\n";
+        cout << "  p - Pause\n";
+        cout << "  r - Resume\n";
+        cout << "Press any key to start...";
+        _getch();
+        generateUpcomingPieces();
+    }
+
+    void draw() {
+        if (firstDraw) {
+            system("cls");
+            firstDraw = false;
+        }
+        gotoxy(0, 0);
+
+        vector<vector<int>> tempBoard = Board;
+        for (int i = 0; i < Tetris_Size; i++)
+            for (int j = 0; j < Tetris_Size; j++)
+                if (currentPiece.shape[i][j] && currentPiece.PieceY + i >= 0) {
+                    tempBoard[currentPiece.PieceY + i][currentPiece.PieceX + j] = 1;
+                }
+
+        cout << "Upcoming Pieces:\n";
+        for (int i = 0; i < 4; i++) {
+            cout << "  ";
+            for (int p = 0; p < 3; p++) {
+                if (p < upcomingPieces.size()) {
+                    for (int j = 0; j < 4; j++) {
+                        cout << (upcomingPieces[p].shape[i][j] ? "#" : " ");
+                    }
+                    cout << "  ";
+                }
+            }
+            cout << endl;
+        }
+        cout << playerName << "'s Score: " << score << endl;
+
+        cout << "+";
+        for (int j = 0; j < Board_Width; j++) cout << "-";
+        cout << "+\n";
+
+        for (int i = 0; i < Board_Height; i++) {
+            cout << "|";
+            for (int j = 0; j < Board_Width; j++) {
+                cout << (tempBoard[i][j] ? "#" : " ");
+            }
+            cout << "|\n";
+        }
+
+        cout << "+";
+        for (int j = 0; j < Board_Width; j++) cout << "-";
+        cout << "+\n";
+
+        if (paused) {
+            gotoxy(2, Board_Height / 2 - 1);
+            cout << "Paused";
+            gotoxy(2, Board_Height / 2);
+            cout << "Press 'r' to Resume";
+            gotoxy(2, Board_Height / 2 + 1);
+            cout << "Controls: a/d/x/w/s/p/r";
+        }
+    }
+
+    void handleInput() {
+        if (_kbhit()) {
+            char key = _getch();
+            int newX = currentPiece.PieceX, newY = currentPiece.PieceY;
+            switch (key) {
+                case 'a': newX--; break; // Move Left
+                case 'd': newX++; break; // Move Right
+                case 'x': newY++; break; // Soft Drop
+                case 'w': { // Rotate Clockwise
+                    Tetromino temp = currentPiece;
+                    temp.rotate();
+                    if (isMoveValid(temp.PieceX, temp.PieceY)) {
+                        currentPiece.rotate();
+                    }
+                    break;
+                }
+                case 's': { // Rotate Counterclockwise
+                    Tetromino temp = currentPiece;
+                    temp.rotate();
+                    temp.rotate();
+                    if (isMoveValid(temp.PieceX, temp.PieceY)) {
+                        currentPiece.rotate();
+                        currentPiece.rotate();
+                    }
+                    break;
+                }
+                case 'p': paused = true; break; // Pause
+                case 'r': paused = false; break; // Resume
+            }
+            if (!paused && isMoveValid(newX, newY)) {
+                currentPiece.PieceX = newX;
+                currentPiece.PieceY = newY;
+            }
+        }
+    }
+
+    bool update() {
+        if (paused) return true;
+        if (isMoveValid(currentPiece.PieceX, currentPiece.PieceY + 1)) {
+            currentPiece.PieceY++;
+        } else {
+            mergePiece();
+            clearLines();
+            if (upcomingPieces.empty()) {
+                currentPiece = Tetromino();
+                generateUpcomingPieces();
+            } else {
+                currentPiece = upcomingPieces[0];
+                upcomingPieces.erase(upcomingPieces.begin());
+                generateUpcomingPieces();
+            }
+            if (!isMoveValid(currentPiece.PieceX, currentPiece.PieceY)) return false;
+        }
+        return true;
+    }
+
+    void run() {
+        while (update()) {
+            draw();
+            handleInput();
+            Sleep(200);
+        }
+        draw();
+        gotoxy(0, Board_Height + 7);
+        cout << "Game Over, " << playerName << "! Final Score: " << score << endl;
+    }
+};
+
+int main() {
+    Tetris game;
+    game.run();
+    return 0;
+}
